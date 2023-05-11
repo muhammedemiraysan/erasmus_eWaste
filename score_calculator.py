@@ -35,7 +35,10 @@ class ScoreCalculator(QMainWindow):
         self.question_list = QListWidget()
         self.question_list.setMaximumWidth(200)
         self.question_list.setMinimumHeight(150)
-
+        self.username_label = QLabel('Enter your username:', self)
+        self.username_label.move(250, 350)
+        self.username_input = QLineEdit(self)
+        self.username_input.move(250, 380)
         add_button = QPushButton('Add Question')
         add_button.clicked.connect(self.add_question)
         self.question_list.itemClicked.connect(self.show_photo)
@@ -139,6 +142,7 @@ class ScoreCalculator(QMainWindow):
             pixmap = QPixmap(photo_path)
             self.photo_label.setPixmap(pixmap)
     def calculate_score(self):
+        username = self.username_input.text()
         score = 0
         for question in self.questions:
             photo_path = question.get('photo')
@@ -153,7 +157,17 @@ class ScoreCalculator(QMainWindow):
 
 
         self.score_display.setText(str(score))
+        user_score = {username: score}
+        try:
+            with open('scores.json', 'r') as f:
+                scores = json.load(f)
+        except FileNotFoundError:
+            scores = {}
 
+        # Add user's score to the scores dictionary and save it to the JSON file
+        scores.update(user_score)
+        with open('scores.json', 'w') as f:
+            json.dump(scores, f)
         # Save the questions with the updated scores
         self.save_questions()
 app = QApplication(sys.argv)
