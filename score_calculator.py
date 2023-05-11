@@ -1,6 +1,8 @@
 import sys
 import json
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QLineEdit, QInputDialog, QPushButton, QVBoxLayout, QWidget, QListWidget, QHBoxLayout
+import hashlib
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QLineEdit, QInputDialog, QPushButton, QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QMessageBox, QFileDialog, QGraphicsScene, QGraphicsView
+from PyQt5.QtGui import QPixmap
 
 
 class ScoreCalculator(QMainWindow):
@@ -11,7 +13,7 @@ class ScoreCalculator(QMainWindow):
     def initUI(self):
         self.setWindowTitle('Score Calculator')
         self.setGeometry(100, 100, 400, 300)
-
+        self.questions = []  # add this line
         # Create the widgets
         self.question_list = QListWidget()
         self.question_list.setMaximumWidth(200)
@@ -22,6 +24,9 @@ class ScoreCalculator(QMainWindow):
 
         remove_button = QPushButton('Remove Question')
         remove_button.clicked.connect(self.remove_question)
+
+        load_button = QPushButton('Load Questions')
+        load_button.clicked.connect(self.load_questions)
 
         score_label = QLabel('Score:')
         self.score_display = QLineEdit()
@@ -39,6 +44,7 @@ class ScoreCalculator(QMainWindow):
         button_layout = QHBoxLayout()
         button_layout.addWidget(add_button)
         button_layout.addWidget(remove_button)
+        button_layout.addWidget(load_button)
         layout.addLayout(button_layout)
 
         layout.addWidget(score_label)
@@ -52,14 +58,29 @@ class ScoreCalculator(QMainWindow):
         self.load_questions()
 
     def add_question(self):
-        text, ok = QInputDialog.getText(self, 'Add Question', 'Enter the question text:')
-        if ok and text:
-            coef, ok = QInputDialog.getDouble(self, 'Add Question', 'Enter the coefficient:')
-            if ok:
-                new_question = {'text': text, 'coef': coef, 'score': 0}
-                self.questions.append(new_question)
-                self.save_questions()
-                self.question_list.addItem(text)
+        password, ok = QInputDialog.getText(self, 'Add Question', 'Enter the password:')
+        if ok and hashlib.sha256(password.encode()).hexdigest() == 'db3d01adde1b61d0fe8f4bae9f555304ee515e03580d04ccf478345a7a3bdbbc':
+            text, ok = QInputDialog.getText(self, 'Add Question', 'Enter the question text:')
+            if ok and text:
+                coef, ok = QInputDialog.getDouble(self, 'Add Question', 'Enter the coefficient:')
+                if ok:
+                    reply = QMessageBox.question(self, 'Add Photo', 'Do you want to add a photo to this question?',
+                                                  QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                    if reply == QMessageBox.Yes:
+                        options = QFileDialog.Options()
+                        options |= QFileDialog.DontUseNativeDialog
+                        file_name, _ = QFileDialog.getOpenFileName(self, "Select Photo", "", "Image Files (*.png *.jpg *.bmp *.gif)", options=options)
+                    else:
+                        file_name = None
+
+                    new_question = {'text': text, 'coef': coef, 'score': 0, 'photo': file_name}
+                    self.questions.append(new_question)
+                    self.save_questions()
+                    self.question_list.addItem(text)
+
+                    QMessageBox.information(self, 'Add Question', 'Question added successfully.')
+        else:
+            QMessageBox.warning(self, 'Add Question', 'Invalid password.')
 
     def remove_question(self):
         selected_question = self.question_list.currentItem()
@@ -70,35 +91,37 @@ class ScoreCalculator(QMainWindow):
             self.question_list.takeItem(question_index)
 
     def load_questions(self):
+        self.question_list.clear()
         try:
             with open('questions.json', 'r') as f:
                 self.questions = json.load(f)
         except FileNotFoundError:
             self.questions = [{'text': 'Question 1', 'coef': 1, 'score': 0},
-                              {'text': 'Question 2', 'coef': 1, 'score': 0},
-                              {'text': 'Question 3', 'coef': 1, 'score': 0}]
+                            {'text': 'Question 2', 'coef': 1, 'score': 0},
+                            {'text': 'Question 3', 'coef': 1, 'score': 0}]
             self.save_questions()
-
+        
         for question in self.questions:
-            self.question_list.addItem(f"{question['text']} ({question['score']})")
+            self.question_list.addItem(question['text'])
 
     def save_questions(self):
         with open('questions.json', 'w') as f:
             json.dump(self.questions, f)
 
     def calculate_score(self):
-        total_score = 0
+        score = 0
         for question in self.questions:
-            score, ok = QInputDialog.getDouble(self, question['text'], 'Enter the score:')
+            reply, ok = QInputDialog.getInt(self, 'Answer Question', question['text'])
             if ok:
-                question['score'] = score
-                self.question_list.item(self.questions.index(question)).setText(f"{question['text']} ({question['score']})")
-                total_score += question['coef'] * question['score']
-        self.score_display.setText(str(total_score))
+                question_score = reply * question['coef']
+                question['score'] = question_score
+                score += question_score
 
+        self.score_display.setText(str(score))
 
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    ex = ScoreCalculator()
-    ex.show()
-    sys.exit(app.exec_())
+        # Save the questions with the updated scores
+        self.save_questions()
+app = QApplication(sys.argv)
+window = ScoreCalculator()
+window.show()
+sys.exit(app.exec_())
